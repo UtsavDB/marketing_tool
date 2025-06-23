@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Marketing Tool Generate Video",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/marketing_tool_generate_video.py",
+            "console": "integratedTerminal"
+        }
+    ]
+}

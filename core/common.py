@@ -3,10 +3,7 @@ import os
 from datetime import datetime
 
 def get_project_root() -> Path:
-    """Go up from the current file until we reach 'sara_content_product'"""
-    current = Path(__file__).resolve()
-    while current.name != "sara_content_product":
-        current = current.parent
+    current = Path(__file__).resolve().parent.parent
     return current
 
 PROJECT_ROOT = get_project_root()
@@ -15,8 +12,7 @@ VIDEO_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output","media","video", today
 VOICE_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output","media","voie", today_date_folder)
 IMAGES_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output","media","images", today_date_folder)
 TEMPLATE_LIBRARY_FOLDER = os.path.join(PROJECT_ROOT, "prompt_library")
-THUMBNAIL_LIBRARY_FOLDER = os.path.join(PROJECT_ROOT, "resources", "images")
-
+SCRIPT_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output", "script_json")
 def debug_print(*args, **kwargs):
     """Print debug information with timestamp and store it in a log file"""
     from datetime import datetime

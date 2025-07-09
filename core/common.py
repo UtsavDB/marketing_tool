@@ -13,6 +13,8 @@ VOICE_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output","media","voie", today_
 IMAGES_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output","media","images", today_date_folder)
 TEMPLATE_LIBRARY_FOLDER = os.path.join(PROJECT_ROOT, "prompt_library")
 SCRIPT_OUTPUT_FOLDER = os.path.join(PROJECT_ROOT, "output", "script_json")
+BACKGROUND_IMAGE_FOLDER = os.path.join(PROJECT_ROOT, "resources", "background")
+
 def debug_print(*args, **kwargs):
     """Print debug information with timestamp and store it in a log file"""
     from datetime import datetime

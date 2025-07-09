@@ -31,7 +31,7 @@ Return **only** the following JSON object, nothing else:
   "paragraphs": [
     {
       "paragraph_number": 1,
-      "text_to_be_rendered": "<short on-screen caption for paragraph 1>",
+      "text_to_be_rendered": "<on-screen caption for paragraph 1 in detail but readable on screen>",
       "audio_script": "<full voice-over line(s) for paragraph 1>",
       "tts": {
         "voice": "<<VOICE_NAME>>",
@@ -42,7 +42,7 @@ Return **only** the following JSON object, nothing else:
     },
     {
       "paragraph_number": 2,
-      "text_to_be_rendered": "<caption 2>",
+      "text_to_be_rendered": "<on-screen caption for paragraph 1 in detail but readable on screen>",
       "audio_script": "<voice-over 2>",
       "tts": {
         "voice": "<<VOICE_NAME>>",
@@ -53,7 +53,7 @@ Return **only** the following JSON object, nothing else:
     },
     {
       "paragraph_number": 3,
-      "text_to_be_rendered": "<caption 3>",
+      "text_to_be_rendered": "<on-screen caption for paragraph 1 in detail but readable on screen>",
       "audio_script": "<voice-over 3>",
       "tts": {
         "voice": "<<VOICE_NAME>>",

@@ -4,3 +4,5 @@ marketing_tool_env/
 output/
 debugpy-x.log
 logs/
+*.mp4
+*.png

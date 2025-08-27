@@ -3,7 +3,7 @@ from datetime import datetime
 from core.common import VIDEO_OUTPUT_FOLDER
 from moviepy.editor import TextClip, AudioFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips
 
-def generate_video_for_paragraphs(text_audio_mapping, background_image_path, output_path=None):
+def generate_video_for_paragraphs(text_audio_mapping, background_image_path=None, output_path=None):
     """
     Generate a video using a provided background image with the same resolution.
     Text from paragraphs is rendered on top of the background image for the duration of its audio.
@@ -12,25 +12,28 @@ def generate_video_for_paragraphs(text_audio_mapping, background_image_path, out
         text_audio_mapping (dict): A dict with key "paragraphs", a list of dicts each containing:
             - "text_to_be_rendered": str, the text to display
             - "audio_file_path": str, path to the audio file
-        background_image_path (str): Path to the background image file.
+        background_image_path (str, optional): Path to the background image file. If None, uses black background.
         output_path (str, optional): Path to save the output video. If None, a timestamped file is created in VIDEO_OUTPUT_FOLDER.
 
     Returns:
         str: Path to the saved video file.
     """
-    # Verify background image exists
-    if not os.path.exists(background_image_path):
-        raise FileNotFoundError(f"Background image not found: {background_image_path}")
+    # Use black background if image not provided or not found
+    if not background_image_path or not os.path.exists(background_image_path):
+        from moviepy.editor import ColorClip
+        bg_image = ColorClip(size=(1280, 720), color=(0, 0, 0)).set_duration(1)
+        font_color = 'white'
+        width, height = bg_image.size
+    else:
+        bg_image = ImageClip(background_image_path)
+        font_color = 'white'
+        width, height = bg_image.size
 
     # Ensure output folder exists
     os.makedirs(VIDEO_OUTPUT_FOLDER, exist_ok=True)
     if not output_path:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = os.path.join(VIDEO_OUTPUT_FOLDER, f"video_{timestamp}.mp4")
-
-    # Load background image and determine resolution
-    bg_image = ImageClip(background_image_path)
-    width, height = bg_image.size
 
     clips = []
     for para in text_audio_mapping.get("paragraphs", []):

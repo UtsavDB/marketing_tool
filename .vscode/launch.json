@@ -7,6 +7,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/marketing_tool_generate_video.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "RunCreate media from image",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/generate_from_image.py",
+            "args": ["inputs/SAP_trimmed.png"],
+            "console": "integratedTerminal"
         }
     ]
 }

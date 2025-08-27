@@ -1,31 +1,33 @@
 import os
 import json
-
 from datetime import datetime
-
-
-
-from core.common import *
-from core.generate_script_json import invoke_openai
+from core.common import debug_print
+from core.generate_script_json import invoke_openai_with_image
 from core.generate_audio import generate_audio_from_script
 from core.generate_video import generate_video_for_paragraphs
+import base64
 
 def read_prompt_template():
-    path = os.path.join("prompt_library", "prompt_template.txt")
+    path = os.path.join("prompt_library", "EGM_Help_image_to_audio.txt")
     with open(path, "r", encoding="utf-8") as f:
         prompt = f.read()
     return prompt
 
+def encode_file_to_base64(file_path):
+    """
+    Encode a file to a base64 string.
+    """
+    import base64
+    with open(file_path, "rb") as file:
+        return base64.b64encode(file.read()).decode("utf-8")
 
-def prepare_prompt(language="english", rule_data=None):
+def prepare_prompt(language="english"):
     """
-    Prepare the prompt for generating a video script.
+    Prepare the prompt for generating a video script from an image.
     """
-    prompt = read_prompt_template()
-    prompt = prompt.replace("<<LANGUAGE>>", language)
-    prompt = prompt.replace("<<RULE_DATA>>", rule_data)
+    prompt = read_prompt_template()    
+    prompt = prompt.replace("<<LANGUAGE>>", language)    
     return prompt
-
 
 def generate_audio_for_paragraphs(script_json):
     """
@@ -38,22 +40,15 @@ def generate_audio_for_paragraphs(script_json):
         para["audio_file_path"] = audio_path
     return data
 
-def main():
-    rule_data = (
-        'Rule name - "Table Game Cashback Bonanza" '
-        'Rule criteria - "@RatingTypeID=TableGame AND NOT ((@TableGameType=\"Poker\") OR (@TableGameType=\"Indian\") '
-        'OR (@TableGameType=\"Baccarat\") OR (@TableGameType=\"Three Card Poker\") OR (@TableGameType=\"Symphony\") '
-        'OR (@TableGameType=\"Ultimate Texas Holdem\") OR (@TableGameType=\"Pai Gow Poker\") and @CoinIN>150'
-        'AND (@Property=pokola)" Benefit "@CompDollars = (@CoinIN)/10; '
-        'EXECUTE AddPlayerCompDollars'
-    )
-    prompt = prepare_prompt(language="Gujrati", rule_data=rule_data)
-    
-    
+def main(image_path):
+    # Prepare the prompt
+    prompt = prepare_prompt(language="english")
 
-    # Prepare script JSON
-    os.makedirs(SCRIPT_OUTPUT_FOLDER, exist_ok=True)    
-    output_dir = os.path.join(SCRIPT_OUTPUT_FOLDER, today_date_folder)
+    # Generate script JSON
+    today_date_folder = datetime.now().strftime("%Y-%m-%d")
+    script_output_folder = "output/script_json"
+    os.makedirs(script_output_folder, exist_ok=True)
+    output_dir = os.path.join(script_output_folder, today_date_folder)
     os.makedirs(output_dir, exist_ok=True)
     output_file = os.path.join(output_dir, "script_json_output.json")
 
@@ -61,9 +56,10 @@ def main():
         with open(output_file, "r", encoding="utf-8") as f:
             script_json = f.read()
     else:
-        script_json = invoke_openai(prompt=prompt)
+        script_json = invoke_openai_with_image(prompt=prompt, image_path=image_path)
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(script_json)
+
     # Check if audio_file_path already exists in script_json
     script_data = json.loads(script_json)
     audio_exists = any("audio_file_path" in para for para in script_data.get("paragraphs", []))
@@ -75,12 +71,16 @@ def main():
         # Overwrite the script_json file with the updated audios variable
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(json.dumps(audios, ensure_ascii=False, indent=2))
+
     debug_print(f"Script JSON loaded from: {output_file}")
+
     # Generate video
-    background_image=os.path.join(BACKGROUND_IMAGE_FOLDER, "bgimage_choctaw.png")
-    video_path = generate_video_for_paragraphs(audios,background_image_path=background_image)
+    video_path = generate_video_for_paragraphs(audios)
     debug_print(f"Video generated at: {video_path}")
 
-
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate audio and video from an image.")
+    parser.add_argument("image_path", help="Path to the input image.")
+    args = parser.parse_args()
+    main(image_path=args.image_path)

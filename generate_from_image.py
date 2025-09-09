@@ -60,8 +60,11 @@ def main(image_path):
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(script_json)
 
-    # Check if audio_file_path already exists in script_json
     script_data = json.loads(script_json)
+    raw_text = script_data.get("raw_text", "")
+    debug_print(f"Raw text extracted: {raw_text}")
+    audio_path_raw = generate_audio_from_script(raw_text)
+    # Check if audio_file_path already exists in script_json
     audio_exists = any("audio_file_path" in para for para in script_data.get("paragraphs", []))
     if audio_exists:
         audios = script_data
@@ -71,7 +74,12 @@ def main(image_path):
         # Overwrite the script_json file with the updated audios variable
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(json.dumps(audios, ensure_ascii=False, indent=2))
+        
+        # Read raw_text attribute from script JSON
+        
 
+
+        
     debug_print(f"Script JSON loaded from: {output_file}")
 
     # Generate video

@@ -236,29 +236,36 @@ def extract_sheet_text(excel_path: str, sheet_name: str) -> Dict[str, Any]:
         "markdown": markdown,
     }
 
+def export_sheet_pdf(excel_path: str, sheet_name: str, output_pdf: str) -> str:
+    """Render an Excel sheet to PDF.
 
-def export_sheet_to_pdf(excel_path: str, sheet_name: str, pdf_path: str) -> None:
-    """Export the given Excel sheet to a PDF file.
+    This helper reads the specified sheet into a DataFrame, converts it to
+    HTML, and then writes that HTML to a PDF file. The output directory is
+    created if it does not already exist.
 
-    Any exception raised during the conversion is caught and re-raised as a
-    ``RuntimeError`` that includes the sheet name and relevant paths. The stack
-    trace is logged via ``debug_print`` for easier debugging.
+    Returns the path to the generated PDF.
     """
+    import pandas as pd
+    import os
+
+    # Read the sheet using the appropriate engine
+    engine = _engine_for_excel(excel_path)
+    df = pd.read_excel(excel_path, sheet_name=sheet_name, engine=engine)
+
+    # Convert DataFrame to HTML
+    html = df.to_html(index=False)
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_pdf) or ".", exist_ok=True)
+
+    # Attempt to convert HTML to PDF using pdfkit or weasyprint
     try:
-        import pandas as pd
+        import pdfkit
 
-        engine = _engine_for_excel(excel_path)
-        df = pd.read_excel(excel_path, sheet_name=sheet_name, engine=engine)
+        pdfkit.from_string(html, output_pdf)
+    except Exception:
+        from weasyprint import HTML  # type: ignore
 
-        # NOTE: This is a minimal placeholder export. Replace with a proper PDF
-        # generation library if richer formatting is required.
-        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-        with open(pdf_path, "w", encoding="utf-8") as f:
-            f.write(df.to_string(index=False))
-    except Exception as e:  # pragma: no cover - defensive
-        import traceback
+        HTML(string=html).write_pdf(output_pdf)
 
-        debug_print(traceback.format_exc())
-        raise RuntimeError(
-            f"Failed to export sheet '{sheet_name}' from '{excel_path}' to '{pdf_path}'"
-        ) from e
+    return output_pdf

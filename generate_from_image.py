@@ -229,7 +229,14 @@ def main(
     audio_exists = any("audio_file_path" in p for p in script_data.get("paragraphs", []))
     if not audio_exists:
         script_data = add_tts_to_paragraphs(script_data)
-        _save_text(output_file, json.dumps(script_data, ensure_ascii=False, indent=2))
+
+    # Ensure all paragraphs have audio before saving
+    missing_audio = [idx for idx, p in enumerate(script_data.get("paragraphs", [])) if not p.get("audio_file_path")]
+    if missing_audio:
+        debug_print(f"ERROR: Missing audio_file_path in paragraphs {missing_audio}")
+        raise RuntimeError("Audio generation failed for some paragraphs")
+
+    _save_text(output_file, json.dumps(script_data, ensure_ascii=False, indent=2))
     debug_print(f"Script JSON ready: {output_file}")
 
 

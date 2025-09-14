@@ -1,94 +1,198 @@
+"""Generate captioned audio/video from an image, optionally guided by Excel text.
+
+This module orchestrates:
+- Building a prompt (image-only or Excel+image)
+- Invoking the LLM to get AV-paragraphs JSON
+- Generating TTS audio per paragraph
+- Rendering a simple video using the image as background
+
+Environment variables required:
+- LLM:  OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_API_VERSION, OPENAI_DEPLOYMENT_NAME
+- TTS:  OPENAI_TTS_API_KEY, OPENAI_TTS_API_BASE, OPENAI_TTS_DEPLOYMENT_NAME
+"""
+
 import os
 import json
+import re
+from typing import Any, Dict, Optional
 from datetime import datetime
-from core.common import debug_print
-from core.generate_script_json import invoke_openai_with_image
+
+from core.common import debug_print, SCRIPT_OUTPUT_FOLDER
+from core.generate_script_json import invoke_openai_with_image,invoke_openai
 from core.generate_audio import generate_audio_from_script
 from core.generate_video import generate_video_for_paragraphs
-import base64
+from core.excel_utils import extract_sheet_text
 
-def read_prompt_template():
+
+def read_prompt_template() -> str:
+    """Read the base prompt for image-only transcription."""
     path = os.path.join("prompt_library", "EGM_Help_image_to_audio.txt")
     with open(path, "r", encoding="utf-8") as f:
-        prompt = f.read()
+        return f.read()
+
+
+def read_prompt_template_excel_image() -> str:
+    """Read the prompt for Excel+image guided output."""
+    path = os.path.join("prompt_library", "EGM_Help_excel_image_to_audio.txt")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def prepare_prompt(language: str = "english") -> str:
+    """Prepare the prompt for image-only mode."""
+    prompt = read_prompt_template()
+    return prompt.replace("<<LANGUAGE>>", language)
+
+
+def prepare_prompt_excel_image(language: str, excel_data_json: str, excel_data_markdown: str) -> str:
+    """Prepare the prompt for Excel+image mode with embedded authoritative Excel JSON and Markdown table.
+
+    If the template contains a placeholder `<<EXCEL_DATA_MARKDOWN>>`, it will be replaced.
+    Otherwise, a new Markdown section is appended to the end of the prompt.
+    """
+    prompt = read_prompt_template_excel_image()
+    prompt = prompt.replace("<<LANGUAGE>>", language)
+    prompt = prompt.replace("<<EXCEL_DATA_JSON>>", excel_data_json)
+
+    if "<<EXCEL_DATA_MARKDOWN>>" in prompt:
+        prompt = prompt.replace("<<EXCEL_DATA_MARKDOWN>>", excel_data_markdown)
+    else:
+        # Append a clearly labeled Markdown section so the model sees the exact grid.
+        prompt += "\n\n## Excel-Derived Markdown (authoritative table)\n\n```markdown\n" + excel_data_markdown + "\n```\n"
     return prompt
 
-def encode_file_to_base64(file_path):
-    """
-    Encode a file to a base64 string.
-    """
-    import base64
-    with open(file_path, "rb") as file:
-        return base64.b64encode(file.read()).decode("utf-8")
 
-def prepare_prompt(language="english"):
-    """
-    Prepare the prompt for generating a video script from an image.
-    """
-    prompt = read_prompt_template()    
-    prompt = prompt.replace("<<LANGUAGE>>", language)    
-    return prompt
+def add_tts_to_paragraphs(script_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate TTS for each paragraph and add `audio_file_path` in-place.
 
-def generate_audio_for_paragraphs(script_json):
+    Returns the updated dict.
     """
-    For each paragraph in the script JSON, generate audio and add the audio file path to the paragraph dict.
-    Returns the updated JSON object.
-    """
-    data = json.loads(script_json)
-    for para in data.get("paragraphs", []):
-        audio_path = generate_audio_from_script(para["audio_script"])
+    for para in script_data.get("paragraphs", []):
+        text = para.get("audio_script", "")
+        if not text:
+            continue
+        audio_path = generate_audio_from_script(text)
         para["audio_file_path"] = audio_path
-    return data
+    return script_data
 
-def main(image_path):
-    # Prepare the prompt
-    prompt = prepare_prompt(language="english")
 
-    # Generate script JSON
+def _sanitize_name(value: str) -> str:
+    """Make a safe file suffix from a name (sheet/file)."""
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", value or "")
+
+
+def _save_text(path: str, content: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def main(
+    image_path: str,
+    excel_path: Optional[str] = None,
+    sheet_name: Optional[str] = None,
+    language: str = "english",
+) -> None:
+    """Generate per-paragraph audio and a simple video.
+
+    - If `excel_path` and `sheet_name` are provided, uses Excel+image prompt.
+    - Otherwise, uses image-only transcription prompt.
+    """
+    # Output locations
     today_date_folder = datetime.now().strftime("%Y-%m-%d")
-    script_output_folder = "output/script_json"
-    os.makedirs(script_output_folder, exist_ok=True)
-    output_dir = os.path.join(script_output_folder, today_date_folder)
+    os.makedirs(SCRIPT_OUTPUT_FOLDER, exist_ok=True)
+    output_dir = os.path.join(SCRIPT_OUTPUT_FOLDER, today_date_folder)
     os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, "script_json_output.json")
+    
+    if image_path is not None and not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image not found: {image_path}")
 
+    # Build prompt
+    if excel_path and sheet_name:
+        excel_data = extract_sheet_text(excel_path=excel_path, sheet_name=sheet_name)
+        excel_payload = {
+            "sheet_name": excel_data["sheet_name"],
+            "flat_text": excel_data["flat_text"],
+        }
+        excel_markdown = excel_data.get("markdown", "")
+        # Save the markdown as a .md file in output/prompts for auditing
+        excel_markdown_output = os.path.join("output", "prompts", today_date_folder, f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md")
+        _save_text(excel_markdown_output, excel_markdown)
+        prompt = prepare_prompt_excel_image(
+            language=language,
+            excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
+            excel_data_markdown=excel_markdown,
+        )
+        suffix = f"{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}"
+        # Save prompt for audit in all cases
+        prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
+        _save_text(prompt_output, prompt)
+    else:
+        prompt = prepare_prompt(language=language)
+        suffix = "image_only"
+        # Save prompt for audit in all cases
+        prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
+        _save_text(prompt_output, prompt)
+
+
+    output_file = os.path.join(output_dir, f"script_json_output_{suffix}.json")
+
+    # Invoke or reuse cached JSON
     if os.path.exists(output_file):
+        debug_print(f"Reusing existing script JSON: {output_file}")
         with open(output_file, "r", encoding="utf-8") as f:
             script_json = f.read()
     else:
-        script_json = invoke_openai_with_image(prompt=prompt, image_path=image_path)
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(script_json)
+        if image_path:
+            debug_print("Invoking LLM with image context…")
+            script_json = invoke_openai_with_image(prompt=prompt, image_path=image_path)
+        else:
+            debug_print("Invoking LLM with text-only context…")
+            script_json = invoke_openai(prompt=prompt)
+        _save_text(output_file, script_json)
 
-    script_data = json.loads(script_json)
-    raw_text = script_data.get("raw_text", "")
-    debug_print(f"Raw text extracted: {raw_text}")
-    audio_path_raw = generate_audio_from_script(raw_text)
-    # Check if audio_file_path already exists in script_json
-    audio_exists = any("audio_file_path" in para for para in script_data.get("paragraphs", []))
-    if audio_exists:
-        audios = script_data
+    # Parse JSON safely
+    try:
+        script_data: Dict[str, Any] = json.loads(script_json)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Model response was not valid JSON. File: {output_file}") from e
+
+    # Optionally save raw_text for auditing
+    raw_text = script_data.get("raw_text")
+    if isinstance(raw_text, str) and raw_text.strip():
+        _save_text(os.path.join(output_dir, f"raw_text_{suffix}.txt"), raw_text)
+
+    # Generate TTS per paragraph (idempotent if already present)
+    audio_exists = any("audio_file_path" in p for p in script_data.get("paragraphs", []))
+    if not audio_exists:
+        script_data = add_tts_to_paragraphs(script_data)
+        _save_text(output_file, json.dumps(script_data, ensure_ascii=False, indent=2))
+    debug_print(f"Script JSON ready: {output_file}")
+
+
+    # Render video with the image as background if provided, else use black background
+    if image_path:
+        video_path = generate_video_for_paragraphs(script_data, background_image_path=image_path)
     else:
-        # Generate audio files
-        audios = generate_audio_for_paragraphs(script_json=script_json)
-        # Overwrite the script_json file with the updated audios variable
-        with open(output_file, "w", encoding="utf-8") as f:
-            f.write(json.dumps(audios, ensure_ascii=False, indent=2))
-        
-        # Read raw_text attribute from script JSON
-        
-
-
-        
-    debug_print(f"Script JSON loaded from: {output_file}")
-
-    # Generate video
-    video_path = generate_video_for_paragraphs(audios)
+        video_path = generate_video_for_paragraphs(script_data, background_color="black")
     debug_print(f"Video generated at: {video_path}")
+
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Generate audio and video from an image.")
-    parser.add_argument("image_path", help="Path to the input image.")
+
+    parser = argparse.ArgumentParser(
+        description="Generate paragraph audio and a simple video from an image; optionally guide content using Excel text."
+    )
+    parser.add_argument("--image_path", help="Path to the input image.", required=False, default=None)
+    parser.add_argument("--excel_path", help="Path to the Excel file (.xls/.xlsx)", default=None)
+    parser.add_argument("--sheet_name", help="Sheet name inside the Excel file", default=None)
+    parser.add_argument("--language", help="Language for captions/voiceover", default="english")
     args = parser.parse_args()
-    main(image_path=args.image_path)
+
+    main(
+        image_path=args.image_path,
+        excel_path=args.excel_path,
+        sheet_name=args.sheet_name,
+        language=args.language,
+    )

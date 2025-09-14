@@ -13,7 +13,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/generate_from_image.py",
-            "args": ["inputs/SAP_trimmed.png"],
+            "args": ["--excel_path", "ViusalAI_GamesTeam_AudioForHelp\\AGR.xls", "--sheet_name", "Paytable"],
             "console": "integratedTerminal"
         }
     ]

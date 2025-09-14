@@ -6,3 +6,5 @@ debugpy-x.log
 logs/
 *.mp4
 *.png
+VisualAI_GamesTeam_AudioForHelp/Helpscreen_5_dragon.rar
+core/__pycache__

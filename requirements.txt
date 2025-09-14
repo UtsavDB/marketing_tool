@@ -3,3 +3,6 @@ python-dotenv
 PyQt5
 moviepy==1.0.3
 requests
+pandas
+openpyxl
+xlrd

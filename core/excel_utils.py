@@ -1,6 +1,8 @@
 import os
 from typing import Any, Dict, List
 
+from core.common import debug_print
+
 
 def _engine_for_excel(path: str) -> str:
     """Pick a pandas engine based on file extension.
@@ -233,3 +235,37 @@ def extract_sheet_text(excel_path: str, sheet_name: str) -> Dict[str, Any]:
         "flat_text": flat,
         "markdown": markdown,
     }
+
+def export_sheet_pdf(excel_path: str, sheet_name: str, output_pdf: str) -> str:
+    """Render an Excel sheet to PDF.
+
+    This helper reads the specified sheet into a DataFrame, converts it to
+    HTML, and then writes that HTML to a PDF file. The output directory is
+    created if it does not already exist.
+
+    Returns the path to the generated PDF.
+    """
+    import pandas as pd
+    import os
+
+    # Read the sheet using the appropriate engine
+    engine = _engine_for_excel(excel_path)
+    df = pd.read_excel(excel_path, sheet_name=sheet_name, engine=engine)
+
+    # Convert DataFrame to HTML
+    html = df.to_html(index=False)
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_pdf) or ".", exist_ok=True)
+
+    # Attempt to convert HTML to PDF using pdfkit or weasyprint
+    try:
+        import pdfkit
+
+        pdfkit.from_string(html, output_pdf)
+    except Exception:
+        from weasyprint import HTML  # type: ignore
+
+        HTML(string=html).write_pdf(output_pdf)
+
+    return output_pdf

@@ -50,7 +50,6 @@ def prepare_prompt(language: str = "english") -> str:
         raise ValueError("Unresolved placeholder <<LANGUAGE>> in prompt")
     return prompt
 
-
 def prepare_prompt_excel_image(language: str, excel_data_json: str) -> str:
     """Prepare the prompt for Excel+image mode with embedded authoritative Excel JSON."""
     prompt = read_prompt_template_excel_image()
@@ -148,6 +147,7 @@ def main(
             "sheet_name": excel_data["sheet_name"],
             "flat_text": excel_data["flat_text"],
         }
+
         # Export the sheet to PDF for auditing
         excel_pdf_output = os.path.join(
             "output",
@@ -156,6 +156,7 @@ def main(
             f"excel_sheet_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.pdf",
         )
         export_sheet_pdf(excel_path=excel_path, sheet_name=sheet_name, output_pdf=excel_pdf_output)
+
         prompt = prepare_prompt_excel_image(
             language=language,
             excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),

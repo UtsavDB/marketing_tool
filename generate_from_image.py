@@ -29,6 +29,8 @@ from core.generate_video import generate_video_for_paragraphs
 from core.excel_utils import extract_sheet_text, export_sheet_pdf
 
 
+EXCEL_FLAT_TEXT_LIMIT = int(os.getenv("EXCEL_FLAT_TEXT_LIMIT", "5000"))
+
 def read_prompt_template() -> str:
     """Read the base prompt for image-only transcription."""
     path = os.path.join("prompt_library", "EGM_Help_image_to_audio.txt")
@@ -149,6 +151,11 @@ def main(
             "flat_text": excel_data["flat_text"],
         }
 
+        if len(excel_payload["flat_text"]) > EXCEL_FLAT_TEXT_LIMIT:
+            debug_print(
+                f"Truncating Excel flat_text from {len(excel_payload['flat_text'])} to {EXCEL_FLAT_TEXT_LIMIT} characters."
+            )
+            excel_payload["flat_text"] = excel_payload["flat_text"][:EXCEL_FLAT_TEXT_LIMIT]
         excel_markdown = excel_data.get("markdown", "")
         excel_pdf_source = excel_data.get("pdf_path") or excel_data.get("pdf_file_path")
         if excel_pdf_source and os.path.exists(excel_pdf_source):

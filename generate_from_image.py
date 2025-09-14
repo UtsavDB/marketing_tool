@@ -41,7 +41,10 @@ def read_prompt_template_excel_image() -> str:
 def prepare_prompt(language: str = "english") -> str:
     """Prepare the prompt for image-only mode."""
     prompt = read_prompt_template()
-    return prompt.replace("<<LANGUAGE>>", language)
+    prompt = prompt.replace("<<LANGUAGE>>", language)
+    if "<<LANGUAGE>>" in prompt:
+        raise ValueError("Unresolved placeholder <<LANGUAGE>> in prompt")
+    return prompt
 
 
 def prepare_prompt_excel_image(language: str, excel_data_json: str, excel_data_markdown: str) -> str:
@@ -59,6 +62,10 @@ def prepare_prompt_excel_image(language: str, excel_data_json: str, excel_data_m
     else:
         # Append a clearly labeled Markdown section so the model sees the exact grid.
         prompt += "\n\n## Excel-Derived Markdown (authoritative table)\n\n```markdown\n" + excel_data_markdown + "\n```\n"
+
+    if "<<LANGUAGE>>" in prompt or "<<EXCEL_DATA_JSON>>" in prompt:
+        raise ValueError("Unresolved placeholders in prompt")
+
     return prompt
 
 

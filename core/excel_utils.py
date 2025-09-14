@@ -1,6 +1,8 @@
 import os
 from typing import Any, Dict, List
 
+from core.common import debug_print
+
 
 def _engine_for_excel(path: str) -> str:
     """Pick a pandas engine based on file extension.
@@ -233,7 +235,6 @@ def extract_sheet_text(excel_path: str, sheet_name: str) -> Dict[str, Any]:
         "flat_text": flat,
         "markdown": markdown,
     }
-
 
 def export_sheet_pdf(excel_path: str, sheet_name: str, output_pdf: str) -> str:
     """Render an Excel sheet to PDF.

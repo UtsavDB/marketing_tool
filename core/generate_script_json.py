@@ -93,3 +93,82 @@ def invoke_openai_with_image(prompt, image_path, temperature=0):
     )
 
     return response.choices[0].message.content
+
+
+
+def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0):
+    """Invoke OpenAI with a prompt, an image, and a PDF document.
+
+    This helper mirrors :func:`invoke_openai_with_image` but includes an
+    additional PDF payload encoded in base64.  The PDF is attached using the
+    ``input_pdf`` type which is accepted by Azure OpenAI for multimodal
+    requests.  The function returns the string content from the first choice of
+    the response.
+
+    Parameters
+    ----------
+    prompt : str
+        Text prompt sent to the model.
+    image_path : str
+        Path to an image that will be base64 encoded and attached.
+    pdf_path : str
+        Path to a PDF file that will be base64 encoded and attached.
+    temperature : float, optional
+        Sampling temperature, by default 0.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
+    api_version = os.getenv("OPENAI_API_VERSION")
+    model = os.getenv("OPENAI_DEPLOYMENT_NAME")
+
+    if not all([api_key, api_base, api_version, model]):
+        raise RuntimeError(
+            "Please set OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_API_VERSION, and OPENAI_DEPLOYMENT_NAME"
+        )
+
+    client = AzureOpenAI(
+        api_key=api_key,
+        api_version=api_version,
+        azure_endpoint=api_base,
+    )
+
+    # Encode image and PDF as base64 strings
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    with open(pdf_path, "rb") as f:
+        pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    input_payload = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                },
+                {
+
+                    "type": "input_pdf",
+                    "data": pdf_b64,
+                    "mime_type": "application/pdf",
+                },
+            ],
+        }
+    ]
+
+    response = client.chat.completions.create(model=model, messages=input_payload)
+
+                    "type": "file",
+                    "file": {"data": pdf_b64, "mime_type": "application/pdf"},
+                },
+            ],
+        }
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=input_payload,
+    )
+    return response.choices[0].message.content

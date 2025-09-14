@@ -93,3 +93,52 @@ def invoke_openai_with_image(prompt, image_path, temperature=0):
     )
 
     return response.choices[0].message.content
+
+
+def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path):
+    """Invoke OpenAI with both an image and a PDF file."""
+    api_key = os.getenv("OPENAI_API_KEY")
+    api_base = os.getenv("OPENAI_API_BASE")
+    api_version = os.getenv("OPENAI_API_VERSION")
+    model = os.getenv("OPENAI_DEPLOYMENT_NAME")
+
+    if not all([api_key, api_base, api_version, model]):
+        raise RuntimeError(
+            "Please set OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_API_VERSION, and OPENAI_DEPLOYMENT_NAME"
+        )
+
+    client = AzureOpenAI(
+        api_key=api_key,
+        api_version=api_version,
+        azure_endpoint=api_base,
+    )
+
+    with open(image_path, "rb") as f:
+        img_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    with open(pdf_path, "rb") as f:
+        pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    input_payload = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_b64}"},
+                },
+                {
+                    "type": "file",
+                    "file": {"data": pdf_b64, "mime_type": "application/pdf"},
+                },
+            ],
+        }
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=input_payload,
+    )
+
+    return response.choices[0].message.content

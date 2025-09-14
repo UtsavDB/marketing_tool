@@ -95,6 +95,7 @@ def invoke_openai_with_image(prompt, image_path, temperature=0):
     return response.choices[0].message.content
 
 
+
 def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0):
     """Invoke OpenAI with a prompt, an image, and a PDF document.
 
@@ -115,7 +116,6 @@ def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0
     temperature : float, optional
         Sampling temperature, by default 0.
     """
-
     api_key = os.getenv("OPENAI_API_KEY")
     api_base = os.getenv("OPENAI_API_BASE")
     api_version = os.getenv("OPENAI_API_VERSION")
@@ -149,6 +149,7 @@ def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0
                     "image_url": {"url": f"data:image/png;base64,{img_b64}"},
                 },
                 {
+
                     "type": "input_pdf",
                     "data": pdf_b64,
                     "mime_type": "application/pdf",
@@ -158,4 +159,16 @@ def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0
     ]
 
     response = client.chat.completions.create(model=model, messages=input_payload)
+
+                    "type": "file",
+                    "file": {"data": pdf_b64, "mime_type": "application/pdf"},
+                },
+            ],
+        }
+    ]
+
+    response = client.chat.completions.create(
+        model=model,
+        messages=input_payload,
+    )
     return response.choices[0].message.content

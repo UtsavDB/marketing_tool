@@ -14,6 +14,7 @@ Environment variables required:
 import os
 import json
 import re
+import shutil
 from typing import Any, Dict, Optional
 from datetime import datetime
 
@@ -115,9 +116,19 @@ def main(
             "flat_text": excel_data["flat_text"],
         }
         excel_markdown = excel_data.get("markdown", "")
-        # Save the markdown as a .md file in output/prompts for auditing
-        excel_markdown_output = os.path.join("output", "prompts", today_date_folder, f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md")
-        _save_text(excel_markdown_output, excel_markdown)
+        excel_pdf_source = excel_data.get("pdf_path") or excel_data.get("pdf_file_path")
+        if excel_pdf_source and os.path.exists(excel_pdf_source):
+            excel_pdf_output = os.path.join(
+                "output",
+                "prompts",
+                today_date_folder,
+                f"excel_pdf_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.pdf",
+            )
+            os.makedirs(os.path.dirname(excel_pdf_output), exist_ok=True)
+            shutil.copy(excel_pdf_source, excel_pdf_output)
+            debug_print(f"Excel PDF copied to: {excel_pdf_output}")
+        else:
+            debug_print("Excel PDF not available; skipping copy.")
         prompt = prepare_prompt_excel_image(
             language=language,
             excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),

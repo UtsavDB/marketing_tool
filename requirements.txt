@@ -6,4 +6,5 @@ requests
 pandas
 openpyxl
 xlrd
+pdfkit
 reportlab

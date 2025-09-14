@@ -72,6 +72,7 @@ Keep text_to_be_rendered short, punchy, and easily readable on a vertical video 
 audio_script can be longer, conversational, and may repeat or expand on screen text.
 tts fields are optional defaults for OpenAI Speech; leave them as provided placeholders unless other values are passed (e.g., different voice, rate, pitch).
 Omit any element you cannot extract gracefully.
+When a PDF is attached, rely on its visual layout for structure. Merged cells indicate headers spanning multiple columns; treat them as section titles and use the layout for implied hierarchy.
 
 ## Example invocation
 RULE_DATA = {

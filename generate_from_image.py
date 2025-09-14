@@ -44,21 +44,11 @@ def prepare_prompt(language: str = "english") -> str:
     return prompt.replace("<<LANGUAGE>>", language)
 
 
-def prepare_prompt_excel_image(language: str, excel_data_json: str, excel_data_markdown: str) -> str:
-    """Prepare the prompt for Excel+image mode with embedded authoritative Excel JSON and Markdown table.
-
-    If the template contains a placeholder `<<EXCEL_DATA_MARKDOWN>>`, it will be replaced.
-    Otherwise, a new Markdown section is appended to the end of the prompt.
-    """
+def prepare_prompt_excel_image(language: str, excel_data_json: str) -> str:
+    """Prepare the prompt for Excel+image mode with embedded authoritative Excel JSON."""
     prompt = read_prompt_template_excel_image()
     prompt = prompt.replace("<<LANGUAGE>>", language)
     prompt = prompt.replace("<<EXCEL_DATA_JSON>>", excel_data_json)
-
-    if "<<EXCEL_DATA_MARKDOWN>>" in prompt:
-        prompt = prompt.replace("<<EXCEL_DATA_MARKDOWN>>", excel_data_markdown)
-    else:
-        # Append a clearly labeled Markdown section so the model sees the exact grid.
-        prompt += "\n\n## Excel-Derived Markdown (authoritative table)\n\n```markdown\n" + excel_data_markdown + "\n```\n"
     return prompt
 
 
@@ -114,14 +104,9 @@ def main(
             "sheet_name": excel_data["sheet_name"],
             "flat_text": excel_data["flat_text"],
         }
-        excel_markdown = excel_data.get("markdown", "")
-        # Save the markdown as a .md file in output/prompts for auditing
-        excel_markdown_output = os.path.join("output", "prompts", today_date_folder, f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md")
-        _save_text(excel_markdown_output, excel_markdown)
         prompt = prepare_prompt_excel_image(
             language=language,
             excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
-            excel_data_markdown=excel_markdown,
         )
         suffix = f"{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}"
         # Save prompt for audit in all cases

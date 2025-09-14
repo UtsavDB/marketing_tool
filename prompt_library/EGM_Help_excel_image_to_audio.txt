@@ -24,6 +24,13 @@ Casino players reading help screens and the machine’s voice-over. Output is co
 <<EXCEL_DATA_JSON>>
 ```
 
+1b. **Excel-derived Markdown table (exact grid)**
+
+```markdown
+<<EXCEL_DATA_MARKDOWN>>
+
+```
+
 
 2. **Image blob (optional)**
 

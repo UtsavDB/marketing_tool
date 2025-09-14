@@ -1,4 +1,4 @@
-"""Generate captioned audio/video from an image, optionally guided by Excel text.
+"""Generate captioned audio/video from an image, optionally guided by Excel text or a PDF file.
 
 This module orchestrates:
 - Building a prompt (image-only or Excel+image)
@@ -18,10 +18,14 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 
 from core.common import debug_print, SCRIPT_OUTPUT_FOLDER
-from core.generate_script_json import invoke_openai_with_image,invoke_openai
+from core.generate_script_json import (
+    invoke_openai_with_image,
+    invoke_openai,
+    invoke_openai_with_image_and_pdf,
+)
 from core.generate_audio import generate_audio_from_script
 from core.generate_video import generate_video_for_paragraphs
-from core.excel_utils import extract_sheet_text
+from core.excel_utils import extract_sheet_text, export_sheet_pdf
 
 
 def read_prompt_template() -> str:
@@ -41,14 +45,26 @@ def read_prompt_template_excel_image() -> str:
 def prepare_prompt(language: str = "english") -> str:
     """Prepare the prompt for image-only mode."""
     prompt = read_prompt_template()
-    return prompt.replace("<<LANGUAGE>>", language)
-
+    prompt = prompt.replace("<<LANGUAGE>>", language)
+    if "<<LANGUAGE>>" in prompt:
+        raise ValueError("Unresolved placeholder <<LANGUAGE>> in prompt")
+    return prompt
 
 def prepare_prompt_excel_image(language: str, excel_data_json: str) -> str:
     """Prepare the prompt for Excel+image mode with embedded authoritative Excel JSON."""
     prompt = read_prompt_template_excel_image()
     prompt = prompt.replace("<<LANGUAGE>>", language)
     prompt = prompt.replace("<<EXCEL_DATA_JSON>>", excel_data_json)
+
+    if "<<EXCEL_DATA_MARKDOWN>>" in prompt:
+        prompt = prompt.replace("<<EXCEL_DATA_MARKDOWN>>", excel_data_markdown)
+    else:
+        # Append a clearly labeled Markdown section so the model sees the exact grid.
+        prompt += "\n\n## Excel-Derived Markdown (authoritative table)\n\n```markdown\n" + excel_data_markdown + "\n```\n"
+
+    if "<<LANGUAGE>>" in prompt or "<<EXCEL_DATA_JSON>>" in prompt:
+        raise ValueError("Unresolved placeholders in prompt")
+
     return prompt
 
 
@@ -77,15 +93,38 @@ def _save_text(path: str, content: str) -> None:
         f.write(content)
 
 
+def _export_markdown_to_pdf(markdown: str, pdf_path: str) -> Optional[str]:
+    """Attempt to write the provided Markdown text to a PDF file.
+
+    Returns the path if successful; otherwise returns None and logs the error.
+    """
+    try:
+        from fpdf import FPDF  # type: ignore
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=10)
+        pdf.add_page()
+        pdf.set_font("Arial", size=10)
+        for line in markdown.splitlines():
+            pdf.multi_cell(0, 5, line)
+        pdf.output(pdf_path)
+        return pdf_path
+    except Exception as exc:  # pragma: no cover - best effort
+        debug_print(f"PDF export failed: {exc}")
+        return None
+
+
 def main(
     image_path: str,
     excel_path: Optional[str] = None,
     sheet_name: Optional[str] = None,
     language: str = "english",
+    pdf_path: Optional[str] = None,
 ) -> None:
     """Generate per-paragraph audio and a simple video.
 
     - If `excel_path` and `sheet_name` are provided, uses Excel+image prompt.
+    - If `pdf_path` is provided alongside an image, both are sent to the LLM.
     - Otherwise, uses image-only transcription prompt.
     """
     # Output locations
@@ -96,14 +135,28 @@ def main(
     
     if image_path is not None and not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
+    if pdf_path is not None and not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-    # Build prompt
+    # Build prompt and optionally export the Excel sheet to PDF
+    pdf_path: Optional[str] = None
     if excel_path and sheet_name:
+
         excel_data = extract_sheet_text(excel_path=excel_path, sheet_name=sheet_name)
         excel_payload = {
             "sheet_name": excel_data["sheet_name"],
             "flat_text": excel_data["flat_text"],
         }
+
+        # Export the sheet to PDF for auditing
+        excel_pdf_output = os.path.join(
+            "output",
+            "prompts",
+            today_date_folder,
+            f"excel_sheet_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.pdf",
+        )
+        export_sheet_pdf(excel_path=excel_path, sheet_name=sheet_name, output_pdf=excel_pdf_output)
+
         prompt = prepare_prompt_excel_image(
             language=language,
             excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
@@ -112,12 +165,52 @@ def main(
         # Save prompt for audit in all cases
         prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
         _save_text(prompt_output, prompt)
+        try:
+            excel_data = extract_sheet_text(excel_path=excel_path, sheet_name=sheet_name)
+            excel_payload = {
+                "sheet_name": excel_data["sheet_name"],
+                "flat_text": excel_data["flat_text"],
+            }
+            excel_markdown = excel_data.get("markdown", "")
+            # Save the markdown as a .md file in output/prompts for auditing
+            excel_markdown_output = os.path.join(
+                "output",
+                "prompts",
+                today_date_folder,
+                f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md",
+            )
+            _save_text(excel_markdown_output, excel_markdown)
+
+            tentative_pdf = os.path.join(
+                "output",
+                "prompts",
+                today_date_folder,
+                f"excel_pdf_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.pdf",
+            )
+            pdf_path = _export_markdown_to_pdf(excel_markdown, tentative_pdf)
+            if pdf_path:
+                prompt = prepare_prompt_excel_image(
+                    language=language,
+                    excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
+                    excel_data_markdown=excel_markdown,
+                )
+                suffix = f"{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}"
+            else:
+                raise RuntimeError("PDF export failed")
+        except Exception as exc:
+            debug_print(f"Skipping Excel context: {exc}")
+            prompt = prepare_prompt(language=language)
+            suffix = "image_only"
+            pdf_path = None
+
     else:
         prompt = prepare_prompt(language=language)
         suffix = "image_only"
-        # Save prompt for audit in all cases
-        prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
-        _save_text(prompt_output, prompt)
+
+    # Save prompt for audit in all cases with note about PDF attachment
+    prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
+    pdf_note = pdf_path if pdf_path else "none"
+    _save_text(prompt_output, f"# PDF attached: {pdf_note}\n\n{prompt}")
 
 
     output_file = os.path.join(output_dir, f"script_json_output_{suffix}.json")
@@ -128,7 +221,12 @@ def main(
         with open(output_file, "r", encoding="utf-8") as f:
             script_json = f.read()
     else:
-        if image_path:
+        if pdf_path and image_path:
+            debug_print("Invoking LLM with image and PDF context…")
+            script_json = invoke_openai_with_image_and_pdf(
+                prompt=prompt, image_path=image_path, pdf_path=pdf_path
+            )
+        elif image_path:
             debug_print("Invoking LLM with image context…")
             script_json = invoke_openai_with_image(prompt=prompt, image_path=image_path)
         else:
@@ -151,7 +249,14 @@ def main(
     audio_exists = any("audio_file_path" in p for p in script_data.get("paragraphs", []))
     if not audio_exists:
         script_data = add_tts_to_paragraphs(script_data)
-        _save_text(output_file, json.dumps(script_data, ensure_ascii=False, indent=2))
+
+    # Ensure all paragraphs have audio before saving
+    missing_audio = [idx for idx, p in enumerate(script_data.get("paragraphs", [])) if not p.get("audio_file_path")]
+    if missing_audio:
+        debug_print(f"ERROR: Missing audio_file_path in paragraphs {missing_audio}")
+        raise RuntimeError("Audio generation failed for some paragraphs")
+
+    _save_text(output_file, json.dumps(script_data, ensure_ascii=False, indent=2))
     debug_print(f"Script JSON ready: {output_file}")
 
 
@@ -173,6 +278,7 @@ if __name__ == "__main__":
     parser.add_argument("--excel_path", help="Path to the Excel file (.xls/.xlsx)", default=None)
     parser.add_argument("--sheet_name", help="Sheet name inside the Excel file", default=None)
     parser.add_argument("--language", help="Language for captions/voiceover", default="english")
+    parser.add_argument("--pdf_path", help="Path to a PDF file for additional context", default=None)
     args = parser.parse_args()
 
     main(
@@ -180,4 +286,5 @@ if __name__ == "__main__":
         excel_path=args.excel_path,
         sheet_name=args.sheet_name,
         language=args.language,
+        pdf_path=args.pdf_path,
     )

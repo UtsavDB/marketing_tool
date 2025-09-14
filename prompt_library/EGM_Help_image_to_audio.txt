@@ -35,17 +35,17 @@ Return **only** the following JSON object:
     {
       "paragraph_number": 1,
       "text_to_be_rendered": "<short on-screen caption, ≤12 words>",
-      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>>"
+      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>"
     },
     {
       "paragraph_number": 2,
       "text_to_be_rendered": "<short on-screen caption, ≤12 words>",
-      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>>"
+      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>"
     },
     {
       "paragraph_number": 3,
       "text_to_be_rendered": "<short on-screen caption, ≤12 words>",
-      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>>"
+      "audio_script": "<exact text from image, with symbols spoken in <<LANGUAGE>>"
     }
   ],
   "raw_text": "<full plain-text transcription preserving line breaks>"

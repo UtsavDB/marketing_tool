@@ -1,4 +1,4 @@
-"""Generate captioned audio/video from an image, optionally guided by Excel text.
+"""Generate captioned audio/video from an image, optionally guided by Excel text or a PDF file.
 
 This module orchestrates:
 - Building a prompt (image-only or Excel+image)
@@ -18,7 +18,11 @@ from typing import Any, Dict, Optional
 from datetime import datetime
 
 from core.common import debug_print, SCRIPT_OUTPUT_FOLDER
-from core.generate_script_json import invoke_openai_with_image,invoke_openai
+from core.generate_script_json import (
+    invoke_openai_with_image,
+    invoke_openai,
+    invoke_openai_with_image_and_pdf,
+)
 from core.generate_audio import generate_audio_from_script
 from core.generate_video import generate_video_for_paragraphs
 from core.excel_utils import extract_sheet_text
@@ -92,10 +96,12 @@ def main(
     excel_path: Optional[str] = None,
     sheet_name: Optional[str] = None,
     language: str = "english",
+    pdf_path: Optional[str] = None,
 ) -> None:
     """Generate per-paragraph audio and a simple video.
 
     - If `excel_path` and `sheet_name` are provided, uses Excel+image prompt.
+    - If `pdf_path` is provided alongside an image, both are sent to the LLM.
     - Otherwise, uses image-only transcription prompt.
     """
     # Output locations
@@ -106,6 +112,8 @@ def main(
     
     if image_path is not None and not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
+    if pdf_path is not None and not os.path.exists(pdf_path):
+        raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
     # Build prompt
     if excel_path and sheet_name:
@@ -143,7 +151,12 @@ def main(
         with open(output_file, "r", encoding="utf-8") as f:
             script_json = f.read()
     else:
-        if image_path:
+        if pdf_path and image_path:
+            debug_print("Invoking LLM with image and PDF context…")
+            script_json = invoke_openai_with_image_and_pdf(
+                prompt=prompt, image_path=image_path, pdf_path=pdf_path
+            )
+        elif image_path:
             debug_print("Invoking LLM with image context…")
             script_json = invoke_openai_with_image(prompt=prompt, image_path=image_path)
         else:
@@ -188,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--excel_path", help="Path to the Excel file (.xls/.xlsx)", default=None)
     parser.add_argument("--sheet_name", help="Sheet name inside the Excel file", default=None)
     parser.add_argument("--language", help="Language for captions/voiceover", default="english")
+    parser.add_argument("--pdf_path", help="Path to a PDF file for additional context", default=None)
     args = parser.parse_args()
 
     main(
@@ -195,4 +209,5 @@ if __name__ == "__main__":
         excel_path=args.excel_path,
         sheet_name=args.sheet_name,
         language=args.language,
+        pdf_path=args.pdf_path,
     )

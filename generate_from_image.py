@@ -87,6 +87,27 @@ def _save_text(path: str, content: str) -> None:
         f.write(content)
 
 
+def _export_markdown_to_pdf(markdown: str, pdf_path: str) -> Optional[str]:
+    """Attempt to write the provided Markdown text to a PDF file.
+
+    Returns the path if successful; otherwise returns None and logs the error.
+    """
+    try:
+        from fpdf import FPDF  # type: ignore
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=10)
+        pdf.add_page()
+        pdf.set_font("Arial", size=10)
+        for line in markdown.splitlines():
+            pdf.multi_cell(0, 5, line)
+        pdf.output(pdf_path)
+        return pdf_path
+    except Exception as exc:  # pragma: no cover - best effort
+        debug_print(f"PDF export failed: {exc}")
+        return None
+
+
 def main(
     image_path: str,
     excel_path: Optional[str] = None,
@@ -107,32 +128,54 @@ def main(
     if image_path is not None and not os.path.exists(image_path):
         raise FileNotFoundError(f"Image not found: {image_path}")
 
-    # Build prompt
+    # Build prompt and optionally export the Excel sheet to PDF
+    pdf_path: Optional[str] = None
     if excel_path and sheet_name:
-        excel_data = extract_sheet_text(excel_path=excel_path, sheet_name=sheet_name)
-        excel_payload = {
-            "sheet_name": excel_data["sheet_name"],
-            "flat_text": excel_data["flat_text"],
-        }
-        excel_markdown = excel_data.get("markdown", "")
-        # Save the markdown as a .md file in output/prompts for auditing
-        excel_markdown_output = os.path.join("output", "prompts", today_date_folder, f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md")
-        _save_text(excel_markdown_output, excel_markdown)
-        prompt = prepare_prompt_excel_image(
-            language=language,
-            excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
-            excel_data_markdown=excel_markdown,
-        )
-        suffix = f"{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}"
-        # Save prompt for audit in all cases
-        prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
-        _save_text(prompt_output, prompt)
+        try:
+            excel_data = extract_sheet_text(excel_path=excel_path, sheet_name=sheet_name)
+            excel_payload = {
+                "sheet_name": excel_data["sheet_name"],
+                "flat_text": excel_data["flat_text"],
+            }
+            excel_markdown = excel_data.get("markdown", "")
+            # Save the markdown as a .md file in output/prompts for auditing
+            excel_markdown_output = os.path.join(
+                "output",
+                "prompts",
+                today_date_folder,
+                f"excel_markdown_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.md",
+            )
+            _save_text(excel_markdown_output, excel_markdown)
+
+            tentative_pdf = os.path.join(
+                "output",
+                "prompts",
+                today_date_folder,
+                f"excel_pdf_{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}.pdf",
+            )
+            pdf_path = _export_markdown_to_pdf(excel_markdown, tentative_pdf)
+            if pdf_path:
+                prompt = prepare_prompt_excel_image(
+                    language=language,
+                    excel_data_json=json.dumps(excel_payload, ensure_ascii=False, indent=2),
+                    excel_data_markdown=excel_markdown,
+                )
+                suffix = f"{_sanitize_name(os.path.splitext(os.path.basename(excel_path))[0])}_{_sanitize_name(sheet_name)}"
+            else:
+                raise RuntimeError("PDF export failed")
+        except Exception as exc:
+            debug_print(f"Skipping Excel context: {exc}")
+            prompt = prepare_prompt(language=language)
+            suffix = "image_only"
+            pdf_path = None
     else:
         prompt = prepare_prompt(language=language)
         suffix = "image_only"
-        # Save prompt for audit in all cases
-        prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
-        _save_text(prompt_output, prompt)
+
+    # Save prompt for audit in all cases with note about PDF attachment
+    prompt_output = os.path.join("output", "prompts", today_date_folder, f"prompt_{suffix}.txt")
+    pdf_note = pdf_path if pdf_path else "none"
+    _save_text(prompt_output, f"# PDF attached: {pdf_note}\n\n{prompt}")
 
 
     output_file = os.path.join(output_dir, f"script_json_output_{suffix}.json")

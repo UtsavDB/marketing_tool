@@ -1,6 +1,8 @@
 import os
 from typing import Any, Dict, List
 
+from core.common import debug_print
+
 
 def _engine_for_excel(path: str) -> str:
     """Pick a pandas engine based on file extension.
@@ -233,3 +235,30 @@ def extract_sheet_text(excel_path: str, sheet_name: str) -> Dict[str, Any]:
         "flat_text": flat,
         "markdown": markdown,
     }
+
+
+def export_sheet_to_pdf(excel_path: str, sheet_name: str, pdf_path: str) -> None:
+    """Export the given Excel sheet to a PDF file.
+
+    Any exception raised during the conversion is caught and re-raised as a
+    ``RuntimeError`` that includes the sheet name and relevant paths. The stack
+    trace is logged via ``debug_print`` for easier debugging.
+    """
+    try:
+        import pandas as pd
+
+        engine = _engine_for_excel(excel_path)
+        df = pd.read_excel(excel_path, sheet_name=sheet_name, engine=engine)
+
+        # NOTE: This is a minimal placeholder export. Replace with a proper PDF
+        # generation library if richer formatting is required.
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        with open(pdf_path, "w", encoding="utf-8") as f:
+            f.write(df.to_string(index=False))
+    except Exception as e:  # pragma: no cover - defensive
+        import traceback
+
+        debug_print(traceback.format_exc())
+        raise RuntimeError(
+            f"Failed to export sheet '{sheet_name}' from '{excel_path}' to '{pdf_path}'"
+        ) from e

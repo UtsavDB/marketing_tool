@@ -1,16 +1,22 @@
+"""Example script that generates a narrated video from rule data."""
+
 import os
 import json
-
 from datetime import datetime
 
-
-
-from core.common import *
+from core.common import (
+    SCRIPT_OUTPUT_FOLDER,
+    today_date_folder,
+    BACKGROUND_IMAGE_FOLDER,
+    debug_print,
+)
 from core.generate_script_json import invoke_openai
 from core.generate_audio import generate_audio_from_script
 from core.generate_video import generate_video_for_paragraphs
 
-def read_prompt_template():
+
+def read_prompt_template() -> str:
+    """Load the base prompt template from the prompt library."""
     path = os.path.join("prompt_library", "prompt_template.txt")
     with open(path, "r", encoding="utf-8") as f:
         prompt = f.read()
@@ -38,7 +44,9 @@ def generate_audio_for_paragraphs(script_json):
         para["audio_file_path"] = audio_path
     return data
 
+
 def main():
+    """Build a prompt, call the LLM, then generate audio and video files."""
     rule_data = (
         'Rule name - "Table Game Cashback Bonanza" '
         'Rule criteria - "@RatingTypeID=TableGame AND NOT ((@TableGameType=\"Poker\") OR (@TableGameType=\"Indian\") '

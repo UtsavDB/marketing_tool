@@ -1,3 +1,5 @@
+"""Helpers to interact with the LLM and produce script JSON."""
+
 import os
 import argparse
 import base64
@@ -159,16 +161,4 @@ def invoke_openai_with_image_and_pdf(prompt, image_path, pdf_path, temperature=0
     ]
 
     response = client.chat.completions.create(model=model, messages=input_payload)
-
-                    "type": "file",
-                    "file": {"data": pdf_b64, "mime_type": "application/pdf"},
-                },
-            ],
-        }
-    ]
-
-    response = client.chat.completions.create(
-        model=model,
-        messages=input_payload,
-    )
     return response.choices[0].message.content

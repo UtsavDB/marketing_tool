@@ -1,7 +1,15 @@
+"""Render a video by overlaying text onto an image background with audio."""
+
 import os
 from datetime import datetime
 from core.common import VIDEO_OUTPUT_FOLDER
-from moviepy.editor import TextClip, AudioFileClip, ImageClip, CompositeVideoClip, concatenate_videoclips
+from moviepy.editor import (
+    TextClip,
+    AudioFileClip,
+    ImageClip,
+    CompositeVideoClip,
+    concatenate_videoclips,
+)
 
 def generate_video_for_paragraphs(text_audio_mapping, background_image_path=None, output_path=None):
     """

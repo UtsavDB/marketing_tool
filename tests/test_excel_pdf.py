@@ -1,8 +1,9 @@
-import base64
-import os
-import sys
-from io import BytesIO
+"""Tests for Excel processing and multimodal OpenAI invocation."""
+
 from pathlib import Path
+import sys
+import base64
+from io import BytesIO
 
 from openpyxl import Workbook, load_workbook
 

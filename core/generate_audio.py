@@ -1,3 +1,5 @@
+"""Text-to-speech helpers that turn script paragraphs into audio files."""
+
 import os
 import requests
 import json

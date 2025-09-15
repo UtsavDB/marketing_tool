@@ -1,3 +1,5 @@
+"""Utilities for reading Excel sheets and exporting their content."""
+
 import os
 from typing import Any, Dict, List
 
